@@ -127,6 +127,42 @@ VALUES
     Ok(())
 }
 
+#[derive(Builder)]
+pub struct GetReviewProps {
+    #[builder(setter(into, strip_option), default)]
+    id: Option<i64>,
+    #[builder(setter(into, strip_option), default)]
+    dish_id: Option<i64>,
+}
+
+#[derive(sqlx::FromRow)]
+pub struct Review {
+    reviewer: i64,
+    score: u8,
+    details: String,
+}
+
+pub async fn get_review(db_conn: &SqlitePool, props: GetReviewProps) -> anyhow::Result<Review> {
+    let GetReviewProps { id, dish_id } = props;
+    let query = if let Some(id) = id {
+        sqlx::query_as::<_, Review>("SELECT reviewer, details, score FROM review WHERE id=?")
+            .bind(id)
+    } else if let Some(id) = dish_id {
+        sqlx::query_as::<_, Review>("SELECT reviewer, details, score FROM review WHERE dish=?")
+            .bind(id)
+    } else {
+        // XXX
+        panic!()
+    };
+
+    let row = query
+        .fetch_one(db_conn)
+        .await
+        .with_context(|| "fail to get review")?;
+
+    Ok(row)
+}
+
 #[tokio::test]
 async fn test_add_new_review() {
     let db = sqlx::sqlite::SqlitePool::connect("sqlite:review.db")
@@ -137,12 +173,25 @@ async fn test_add_new_review() {
     let rid = add_restaurant(&db, "KFC", "WuHan").await.unwrap();
     let did = add_dish(&db, rid, "", None).await.unwrap();
 
+    let comment = "Very good chicken, love from WuHan";
     let prop = NewReviewPropsBuilder::default()
         .dish(DishProp::Id(did))
         .reviewer(ReviewerProp::Id(649191333))
-        .details("Very good!".to_string())
+        .details(comment.to_string())
         .score(5)
         .build()
         .unwrap();
     add_new_review(&db, prop).await.unwrap();
+
+    let review = get_review(
+        &db,
+        GetReviewPropsBuilder::default()
+            .dish_id(did)
+            .build()
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(review.details, comment);
 }
