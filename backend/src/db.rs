@@ -1,6 +1,5 @@
 use anyhow::Context;
 use derive_builder::Builder;
-use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use sqlx::{sqlite::SqlitePool, Row};
 
 #[derive(Clone)]
@@ -166,32 +165,28 @@ pub async fn get_review(db_conn: &SqlitePool, props: GetReviewProps) -> anyhow::
 
 #[derive(sqlx::FromRow)]
 pub struct Restaurant {
-    name: String,
-    id: i64,
+    pub name: String,
+    pub id: i64,
 }
 
-pub async fn fzy_get_restaurant(
+pub async fn get_restaurant(
     db_conn: &SqlitePool,
-    pat: &str,
-    offset: Option<i64>,
+    search_props: Option<(i64, Option<i64>)>
 ) -> anyhow::Result<Vec<Restaurant>> {
-    // search in a range
-    let offset = offset.unwrap_or(0);
-    let end = 10 + offset;
+    let sql = if let Some((range, offset)) = search_props {
+        sqlx::query_as::<_, Restaurant>("SELECT * FROM restaurant WHERE id BETWEEN ? AND ?")
+            .bind(offset.unwrap_or(1))
+            .bind(range)
+    } else {
+        sqlx::query_as::<_, Restaurant>("SELECT * FROM restaurant")
+    };
 
-    let matcher = SkimMatcherV2::default();
-    let names: Vec<Restaurant> =
-        sqlx::query_as::<_, Restaurant>("SELECT id,name FROM restaurant WHERE id BETWEEN ? AND ?")
-            .bind(offset)
-            .bind(end)
-            .fetch_all(db_conn)
-            .await
-            .with_context(|| format!("Fail to get restaurants from {offset} to {end}"))?
-            .into_iter()
-            .filter(|row| matcher.fuzzy_match(&row.name, pat).is_some())
-            .collect();
+    let rsts: Vec<Restaurant> = sql
+        .fetch_all(db_conn)
+        .await
+        .with_context(|| format!("Fail to get restaurants"))?;
 
-    Ok(names)
+    Ok(rsts)
 }
 
 #[tokio::test]
@@ -203,7 +198,7 @@ async fn test_add_new_review() {
     add_new_user(&db, (649191333, "Avimitin")).await.unwrap();
     let expect = "KFC";
     let rid = add_restaurant(&db, expect, "WuHan").await.unwrap();
-    let restaurant = fzy_get_restaurant(&db, "K", None).await.unwrap();
+    let restaurant = get_restaurant(&db, None).await.unwrap();
     assert!(!restaurant.is_empty());
     assert_eq!(restaurant[0].id, 1);
     assert_eq!(restaurant[0].name, expect);

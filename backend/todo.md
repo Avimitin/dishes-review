@@ -16,9 +16,20 @@
 ## Backend (The TG Bot)
 
 - Commands
-    - [ ] `/rst add/upd/rmv`
     - [ ] `/meal add/upd`
     - [ ] `/review add/upd`
 - Database
+
+### Restaurant Manage
+
+* cmd `/rst add {name} {address}`
+* cmd `/rst search {fuzzy-pattern}`
+    - return list of id-matches pair
+* cmd `/rst edit {id}`
+    - return menus
+        * [update]
+        * [new dishes]
+        * [list dishes]
+        * [delete]
 
 ## Frontend
