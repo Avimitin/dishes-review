@@ -1,5 +1,6 @@
 use anyhow::Context;
 use derive_builder::Builder;
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use sqlx::{sqlite::SqlitePool, Row};
 
 #[derive(Clone)]
@@ -163,6 +164,36 @@ pub async fn get_review(db_conn: &SqlitePool, props: GetReviewProps) -> anyhow::
     Ok(row)
 }
 
+#[derive(sqlx::FromRow)]
+pub struct Restaurant {
+    name: String,
+    id: i64,
+}
+
+pub async fn fzy_get_restaurant(
+    db_conn: &SqlitePool,
+    pat: &str,
+    offset: Option<i64>,
+) -> anyhow::Result<Vec<Restaurant>> {
+    // search in a range
+    let offset = offset.unwrap_or(0);
+    let end = 10 + offset;
+
+    let matcher = SkimMatcherV2::default();
+    let names: Vec<Restaurant> =
+        sqlx::query_as::<_, Restaurant>("SELECT id,name FROM restaurant WHERE id BETWEEN ? AND ?")
+            .bind(offset)
+            .bind(end)
+            .fetch_all(db_conn)
+            .await
+            .with_context(|| format!("Fail to get restaurants from {offset} to {end}"))?
+            .into_iter()
+            .filter(|row| matcher.fuzzy_match(&row.name, pat).is_some())
+            .collect();
+
+    Ok(names)
+}
+
 #[tokio::test]
 async fn test_add_new_review() {
     let db = sqlx::sqlite::SqlitePool::connect("sqlite:review.db")
@@ -170,7 +201,13 @@ async fn test_add_new_review() {
         .unwrap();
 
     add_new_user(&db, (649191333, "Avimitin")).await.unwrap();
-    let rid = add_restaurant(&db, "KFC", "WuHan").await.unwrap();
+    let expect = "KFC";
+    let rid = add_restaurant(&db, expect, "WuHan").await.unwrap();
+    let restaurant = fzy_get_restaurant(&db, "K", None).await.unwrap();
+    assert!(!restaurant.is_empty());
+    assert_eq!(restaurant[0].id, 1);
+    assert_eq!(restaurant[0].name, expect);
+
     let did = add_dish(&db, rid, "", None).await.unwrap();
 
     let comment = "Very good chicken, love from WuHan";
