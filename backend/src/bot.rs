@@ -43,7 +43,7 @@ impl AddRestaurantAction {
 macro_rules! send {
     ([$bot:expr, $msg:expr], $text:expr) => {
         if let Err(e) = $bot.send_message($msg.chat.id, $text).await {
-            tracing::error!("{e}")
+            tracing::error!("fail to send message: {e}")
         }
     };
 }
