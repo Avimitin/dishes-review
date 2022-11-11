@@ -1,3 +1,2 @@
 mod data;
-mod bot;
-mod db;
+pub mod db;

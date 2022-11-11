@@ -1,4 +1,4 @@
-use crate::db;
+use meal_review::db;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use sqlx::SqlitePool;
 use teloxide::{prelude::*, types::Message, Bot};
