@@ -20,6 +20,7 @@ enum Commands {
 enum AddRestaurantAction {
     Add(String, String),
     Search(String),
+    Edit(i64),
 }
 
 impl AddRestaurantAction {
@@ -48,6 +49,16 @@ impl AddRestaurantAction {
                     Ok(Self::Search(args[2].to_string()))
                 }
             }
+            "edit" => {
+                if args.len() < 3 {
+                    Err("too less argument")
+                } else {
+                    let Ok(id) = args[2].parse() else {
+                        return Err("Can not parse your argument into number")
+                    };
+                    Ok(Self::Edit(id))
+                }
+            }
             _ => Err("unexpected action"),
         }
     }
@@ -60,7 +71,8 @@ impl AddRestaurantAction {
                 send!([bot, msg], "Added.");
             }
             Self::Search(pattern) => {
-                let rests = db::get_restaurant(pool, None).await?;
+                let rests = db::get_restaurant(pool, db::RestaurantSearchProps::All).await?;
+                // XXX: move it somewhere else then here
                 let matcher = SkimMatcherV2::default();
                 let result: String = rests
                     .into_iter()
@@ -69,6 +81,35 @@ impl AddRestaurantAction {
                         format!("{sumed}\n{}. {}", unit.id, unit.name)
                     });
                 send!([bot, msg], result);
+            }
+            Self::Edit(id) => {
+                let rest = db::get_restaurant(pool, db::RestaurantSearchProps::Id(id)).await?;
+                if rest.is_empty() {
+                    send!([bot, msg], "Incorrect id, no restaurant found");
+                    return Ok(());
+                }
+                let rest = &rest[0];
+                // build the callback data by "{category}-{id}-{action}"
+                let cbd = |action: &str| format!("RSTBTN-{}-{action}", rest.id);
+                let btn = teloxide::types::InlineKeyboardButton::callback;
+                let buttons = vec![
+                    vec![
+                        btn("Update Restaurant", cbd("update")),
+                        btn("New Dish", cbd("new_dishes")),
+                    ],
+                    vec![
+                        btn("List Dishes", cbd("list_dishes")),
+                        btn("Delete", cbd("delete")),
+                    ],
+                ];
+                let markup = teloxide::types::InlineKeyboardMarkup::new(buttons);
+
+                bot.send_message(
+                    msg.chat.id,
+                    format!("List of operation for: \n\n{}", rest.name),
+                )
+                .reply_markup(markup)
+                .await?;
             }
         }
 
