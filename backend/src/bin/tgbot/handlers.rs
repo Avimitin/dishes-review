@@ -1,5 +1,5 @@
-use meal_review::db;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use meal_review::db;
 use sqlx::SqlitePool;
 use teloxide::{prelude::*, types::Message, Bot};
 
@@ -26,19 +26,30 @@ impl AddRestaurantAction {
     // I need:
     //  /cmd add <name>
     fn new(args: &[&str]) -> Result<Self, &'static str> {
-        if args.len() < 4 {
+        if args.len() < 2 {
             return Err("too less argument");
         }
 
         match args[1] {
-            "add" => (),
-            _ => return Err("unexpected action"),
+            "add" => {
+                if args.len() < 4 {
+                    Err("too less argument")
+                } else {
+                    Ok(AddRestaurantAction::Add(
+                        args[2].to_string(),
+                        args[3].to_string(),
+                    ))
+                }
+            }
+            "search" => {
+                if args.len() < 3 {
+                    Err("too less argument")
+                } else {
+                    Ok(Self::Search(args[2].to_string()))
+                }
+            }
+            _ => Err("unexpected action"),
         }
-
-        Ok(AddRestaurantAction::Add(
-            args[2].to_string(),
-            args[3].to_string(),
-        ))
     }
 
     // consumed the action
