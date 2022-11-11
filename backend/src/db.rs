@@ -169,22 +169,41 @@ pub struct Restaurant {
     pub id: i64,
 }
 
+pub enum RestaurantSearchProps {
+    Range(i64, i64),
+    Id(i64),
+    All,
+}
+
+type SqliteQueryAs<'q> =
+    sqlx::query::QueryAs<'q, sqlx::Sqlite, Restaurant, sqlx::sqlite::SqliteArguments<'q>>;
+
+impl RestaurantSearchProps {
+    pub fn gen_query<'q>(self) -> SqliteQueryAs<'q> {
+        match self {
+            Self::Range(s, e) => {
+                sqlx::query_as::<_, Restaurant>("SELECT * FROM restaurant WHERE id BETWEEN ? AND ?")
+                    .bind(s)
+                    .bind(e)
+            }
+            Self::Id(id) => {
+                sqlx::query_as::<_, Restaurant>("SELECT * FROM restaurant WHERE id=?").bind(id)
+            }
+            Self::All => sqlx::query_as::<_, Restaurant>("SELECT * FROM restaurant"),
+        }
+    }
+}
+
 pub async fn get_restaurant(
     db_conn: &SqlitePool,
-    search_props: Option<(i64, Option<i64>)>
+    props: RestaurantSearchProps,
 ) -> anyhow::Result<Vec<Restaurant>> {
-    let sql = if let Some((range, offset)) = search_props {
-        sqlx::query_as::<_, Restaurant>("SELECT * FROM restaurant WHERE id BETWEEN ? AND ?")
-            .bind(offset.unwrap_or(1))
-            .bind(range)
-    } else {
-        sqlx::query_as::<_, Restaurant>("SELECT * FROM restaurant")
-    };
+    let sql = props.gen_query();
 
     let rsts: Vec<Restaurant> = sql
         .fetch_all(db_conn)
         .await
-        .with_context(|| format!("Fail to get restaurants"))?;
+        .with_context(|| "Fail to get restaurants".to_string())?;
 
     Ok(rsts)
 }
@@ -198,7 +217,7 @@ async fn test_add_new_review() {
     add_new_user(&db, (649191333, "Avimitin")).await.unwrap();
     let expect = "KFC";
     let rid = add_restaurant(&db, expect, "WuHan").await.unwrap();
-    let restaurant = get_restaurant(&db, None).await.unwrap();
+    let restaurant = get_restaurant(&db, RestaurantSearchProps::All).await.unwrap();
     assert!(!restaurant.is_empty());
     assert_eq!(restaurant[0].id, 1);
     assert_eq!(restaurant[0].name, expect);
