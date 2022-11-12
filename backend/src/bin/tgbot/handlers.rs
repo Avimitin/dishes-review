@@ -19,17 +19,13 @@ macro_rules! send {
 pub(super) enum ChatState {
     #[default]
     None,
-    CreatingDishes(i64),
+    CreatingDishesStage1(i64),
+    CreatingDisheFinal(i64, String),
     EditingRstName(i64),
     EditingRstAddr(i64),
 }
 
 type Dialogue = teloxide::prelude::Dialogue<ChatState, InMemStorage<ChatState>>;
-
-#[derive(Clone)]
-struct BotState {
-    mem: Dialogue,
-}
 
 #[derive(BotCommands, Clone, Debug)]
 #[command(
@@ -61,6 +57,15 @@ pub(super) fn handler_schema() -> teloxide::dispatching::UpdateHandler<anyhow::E
         .branch(
             dptree::case![ChatState::EditingRstName(_name)].endpoint(edit_restaurant_name_handler),
         )
+        .branch(
+            dptree::case![ChatState::EditingRstAddr(_a)].endpoint(edit_restaurant_address_handler),
+        )
+        .branch(
+            dptree::case![ChatState::CreatingDishesStage1(_a)].endpoint(add_dish_stage1_handler),
+        )
+        .branch(
+            dptree::case![ChatState::CreatingDisheFinal(_a, _b)].endpoint(add_dish_final_handler),
+        )
         .branch(command_handler);
 
     let callback_handler = Update::filter_callback_query().endpoint(callback_dispatcher);
@@ -68,12 +73,6 @@ pub(super) fn handler_schema() -> teloxide::dispatching::UpdateHandler<anyhow::E
     teloxide::dispatching::dialogue::enter::<Update, InMemStorage<ChatState>, ChatState, _>()
         .branch(callback_handler)
         .branch(message_handler)
-}
-
-enum AddRestaurantAction {
-    Add(String, String),
-    Search(String),
-    Edit(i64),
 }
 
 struct BtnPrefix;
@@ -90,6 +89,11 @@ impl RstBtnAction {
     const DEL: &str = "delete";
 }
 
+enum AddRestaurantAction {
+    Add(String, String),
+    Search(String),
+    Edit(i64),
+}
 impl AddRestaurantAction {
     // I need:
     //  /cmd add <name>
@@ -239,6 +243,37 @@ async fn edit_restaurant_name_handler(
     Ok(())
 }
 
+async fn edit_restaurant_address_handler(
+    bot: Bot,
+    msg: Message,
+    pool: SqlitePool,
+    dialogue: Dialogue,
+    rid: i64,
+) -> anyhow::Result<()> {
+    let Some(text) = msg.text() else {
+        send!([bot, msg], "Required text message, please resend a valid restaurant address, or /cancel.");
+        return Ok(())
+    };
+
+    if text.contains("/cancel") {
+        send!([bot, msg], "Process cancelled");
+        dialogue.exit().await?;
+        return Ok(());
+    }
+
+    db::update_restaurant(
+        &pool,
+        rid,
+        db::UpdateRestaurantProps::UpdateAddr(text.to_string()),
+    )
+    .await?;
+
+    send!([bot, msg], format!("Restaurant name is changed to {text}"));
+    dialogue.exit().await?;
+
+    Ok(())
+}
+
 async fn callback_dispatcher(
     bot: Bot,
     query: CallbackQuery,
@@ -265,7 +300,7 @@ async fn callback_dispatcher(
                 })
                 .expect("Met unexpected callback format, please check");
 
-            rst_cb_handler(bot, message, id, callback_action[2]).await?;
+            rst_cb_handler(bot, message, id, callback_action[2], &dialogue).await?;
         }
         BtnPrefix::UPDATE_RESTAURANT => {
             if callback_action.len() != 3 {
@@ -291,7 +326,13 @@ impl RstBtnUpdActionBtn {
     const ADDR: &str = "address";
 }
 
-async fn rst_cb_handler(bot: Bot, msg: Message, rst_id: i64, action: &str) -> anyhow::Result<()> {
+async fn rst_cb_handler(
+    bot: Bot,
+    msg: Message,
+    rst_id: i64,
+    action: &str,
+    dialogue: &Dialogue,
+) -> anyhow::Result<()> {
     match action {
         RstBtnAction::UPDATE => {
             let new_text = "What you want to do with this restaurant";
@@ -304,6 +345,12 @@ async fn rst_cb_handler(bot: Bot, msg: Message, rst_id: i64, action: &str) -> an
             let new_markup = teloxide::types::InlineKeyboardMarkup::default().append_row(buttons);
             bot.edit_message_text(msg.chat.id, msg.id, new_text)
                 .reply_markup(new_markup)
+                .await?;
+        }
+        RstBtnAction::ADD => {
+            send!([bot, msg], "Please send the name of the dish");
+            dialogue
+                .update(ChatState::CreatingDishesStage1(rst_id))
                 .await?;
         }
         _ => panic!("Unexpected action {action} present, please check your code"),
@@ -336,5 +383,75 @@ async fn rstupd_cb_handler(
         _ => (),
     }
 
+    Ok(())
+}
+
+async fn add_dish_stage1_handler(
+    bot: Bot,
+    msg: Message,
+    rid: i64,
+    dialogue: Dialogue,
+) -> anyhow::Result<()> {
+    let Some(text) = msg.text() else {
+        send!([bot, msg], "Please send text message");
+        return Ok(());
+    };
+
+    if text.contains("/cancel") {
+        dialogue.exit().await?;
+        send!([bot, msg], "Cancelled");
+        return Ok(());
+    }
+
+    send!(
+        [bot, msg],
+        format!("{text} created, please send a picture, or just click /skip")
+    );
+    dialogue
+        .update(ChatState::CreatingDisheFinal(rid, text.to_string()))
+        .await?;
+    Ok(())
+}
+
+async fn add_dish_final_handler(
+    bot: Bot,
+    msg: Message,
+    stage1: (i64, String),
+    dialogue: Dialogue,
+    pool: SqlitePool,
+) -> anyhow::Result<()> {
+    let mut skipped = false;
+    if let Some(text) = msg.text() {
+        if text.contains("/skip") {
+            skipped = true;
+        } else {
+            send!([bot, msg], "Need Image, not text, /skip ?");
+            return Ok(());
+        }
+    }
+
+    let image = if skipped {
+        None
+    } else {
+        let Some(images) = msg.photo() else {
+            send!([bot,msg], "Need images, please retry or /skip");
+            return Ok(())
+        };
+
+        if images.len() > 1 {
+            send!(
+                [bot, msg],
+                "Multiple images detected, choosing the first one"
+            );
+        }
+
+        Some(images[0].file.id.clone())
+    };
+
+    db::add_dish(&pool, stage1.0, &stage1.1, image).await?;
+
+    dialogue.exit().await?;
+
+    send!([bot, msg], "Dish added");
     Ok(())
 }
