@@ -212,6 +212,40 @@ pub async fn get_restaurant(
     Ok(rsts)
 }
 
+pub enum UpdateRestaurantProps {
+    UpdateName(String),
+    UpdateAddr(String),
+    Delete,
+}
+
+impl UpdateRestaurantProps {
+    fn into_query<'q>(self, id: i64) -> sqlx::query::Query<'q, DB, DBArg<'q>> {
+        match self {
+            Self::UpdateName(name) => sqlx::query("UPDATE restaurant SET name=? WHERE id=?")
+                .bind(name)
+                .bind(id),
+            Self::UpdateAddr(addr) => sqlx::query("UPDATE restaurant SET address=? WHERE id=?")
+                .bind(addr)
+                .bind(id),
+            Self::Delete => sqlx::query("DELETE FROM restaurant WHERE id=?").bind(id),
+        }
+    }
+}
+
+pub async fn update_restaurant(
+    db_conn: &SqlitePool,
+    id: i64,
+    props: UpdateRestaurantProps,
+) -> anyhow::Result<()> {
+    props
+        .into_query(id)
+        .execute(db_conn)
+        .await
+        .with_context(|| "fail to update restaurant")?;
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_add_new_review() {
     let db = sqlx::sqlite::SqlitePool::connect("sqlite:review.db")
