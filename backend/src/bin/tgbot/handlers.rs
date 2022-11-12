@@ -104,6 +104,7 @@ impl AddRestaurantAction {
                 db::add_restaurant(pool, &restaurant, &address).await?;
                 send!([bot, msg], "Added.");
             }
+            //
             Self::Search(pattern) => {
                 let rests = db::get_restaurant(pool, db::RestaurantSearchProps::All).await?;
                 // XXX: move it somewhere else then here
@@ -112,10 +113,11 @@ impl AddRestaurantAction {
                     .into_iter()
                     .filter(|restaurant| matcher.fuzzy_match(&restaurant.name, &pattern).is_some())
                     .fold(String::new(), |sumed, unit| {
-                        format!("{sumed}\n{}. {}", unit.id, unit.name)
+                        format!("{sumed}\n{}. {} {}", unit.id, unit.name, unit.address)
                     });
                 send!([bot, msg], result);
             }
+            //
             Self::Edit(id) => {
                 let rest = db::get_restaurant(pool, db::RestaurantSearchProps::Id(id)).await?;
                 if rest.is_empty() {
