@@ -255,7 +255,9 @@ async fn test_add_new_review() {
     add_new_user(&db, (649191333, "Avimitin")).await.unwrap();
     let expect = "KFC";
     let rid = add_restaurant(&db, expect, "WuHan").await.unwrap();
-    let restaurant = get_restaurant(&db, RestaurantSearchProps::All).await.unwrap();
+    let restaurant = get_restaurant(&db, RestaurantSearchProps::All)
+        .await
+        .unwrap();
     assert!(!restaurant.is_empty());
     assert_eq!(restaurant[0].id, 1);
     assert_eq!(restaurant[0].name, expect);
