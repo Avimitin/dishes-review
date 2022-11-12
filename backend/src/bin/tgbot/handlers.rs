@@ -68,7 +68,7 @@ impl AddRestaurantAction {
         match args[1] {
             "add" => {
                 if args.len() < 4 {
-                    Err("too less argument")
+                    Err("too less argument, usage: /rest add <name> <addr>")
                 } else {
                     Ok(AddRestaurantAction::Add(
                         args[2].to_string(),
