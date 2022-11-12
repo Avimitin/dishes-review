@@ -15,9 +15,35 @@ macro_rules! send {
     };
 }
 
+#[derive(Debug, Default, Clone)]
+pub(super) enum ChatState {
+    #[default]
+    None,
+    CreatingDishes(i64),
+    EditingRstName(i64),
+    EditingRstAddr(i64),
+}
+
+type Dialogue = teloxide::prelude::Dialogue<ChatState, InMemStorage<ChatState>>;
+
+#[derive(Clone)]
+struct BotState {
+    mem: Dialogue,
+}
+
+#[derive(BotCommands, Clone, Debug)]
+#[command(
+    rename_rule = "lowercase",
+    description = "Commands for operating the database"
+)]
 enum Commands {
+    #[command(description = "Display this help page")]
+    Help,
+    #[command(description = "Operate the restaurant")]
     Rest,
+    #[command(description = "Operate on dish")]
     Dish,
+    #[command(description = "Operate the review")]
     Review,
 }
 
