@@ -320,11 +320,17 @@ async fn rstupd_cb_handler(
 ) -> anyhow::Result<()> {
     match field {
         RstBtnUpdActionBtn::NAME => {
-            send!([bot, msg], "Please send the new name, press /cancel to cancel");
+            send!(
+                [bot, msg],
+                "Please send the new name, press /cancel to cancel"
+            );
             dialogue.update(ChatState::EditingRstName(rid)).await?;
         }
         RstBtnUpdActionBtn::ADDR => {
-            send!([bot, msg], "Please send the new address, press /cancel to cancel");
+            send!(
+                [bot, msg],
+                "Please send the new address, press /cancel to cancel"
+            );
             dialogue.update(ChatState::EditingRstAddr(rid)).await?;
         }
         _ => (),
