@@ -289,7 +289,6 @@ struct RstBtnUpdActionBtn;
 impl RstBtnUpdActionBtn {
     const NAME: &str = "name";
     const ADDR: &str = "address";
-    const CANCEL: &str = "cancel";
 }
 
 async fn rst_cb_handler(bot: Bot, msg: Message, rst_id: i64, action: &str) -> anyhow::Result<()> {
@@ -301,7 +300,6 @@ async fn rst_cb_handler(bot: Bot, msg: Message, rst_id: i64, action: &str) -> an
             let buttons = vec![
                 btn("Update Name", cbd(RstBtnUpdActionBtn::NAME)),
                 btn("Update Address", cbd(RstBtnUpdActionBtn::ADDR)),
-                btn("Cancel", cbd(RstBtnUpdActionBtn::CANCEL)),
             ];
             let new_markup = teloxide::types::InlineKeyboardMarkup::default().append_row(buttons);
             bot.edit_message_text(msg.chat.id, msg.id, new_text)
