@@ -17,6 +17,22 @@ enum Commands {
     Review,
 }
 
+pub(super) fn handler_schema() -> teloxide::dispatching::UpdateHandler<anyhow::Error> {
+    let command_handler = teloxide::filter_command::<Commands, _>()
+        .branch(dptree::case![Commands::Rest].endpoint(restaurant_handler))
+        .branch(
+            dptree::case![Commands::Help].endpoint(|msg: Message, bot: Bot| async move {
+                send!([bot, msg], Commands::descriptions().to_string());
+                Ok(())
+            }),
+        );
+
+    let message_handler = Update::filter_message().branch(command_handler);
+
+    teloxide::dispatching::dialogue::enter::<Update, InMemStorage<ChatState>, ChatState, _>()
+        .branch(message_handler)
+}
+
 enum AddRestaurantAction {
     Add(String, String),
     Search(String),
