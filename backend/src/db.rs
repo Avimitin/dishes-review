@@ -183,7 +183,7 @@ type DBArg<'q> = sqlx::sqlite::SqliteArguments<'q>;
 type SqliteQueryAs<'q, O> = sqlx::query::QueryAs<'q, DB, O, DBArg<'q>>;
 
 impl RestaurantSearchProps {
-    pub fn gen_query<'q>(self) -> SqliteQueryAs<'q> {
+    pub fn into_query_as<'q>(self) -> SqliteQueryAs<'q, Restaurant> {
         match self {
             Self::Range(s, e) => {
                 sqlx::query_as::<_, Restaurant>("SELECT * FROM restaurant WHERE id BETWEEN ? AND ?")
@@ -202,7 +202,7 @@ pub async fn get_restaurant(
     db_conn: &SqlitePool,
     props: RestaurantSearchProps,
 ) -> anyhow::Result<Vec<Restaurant>> {
-    let sql = props.gen_query();
+    let sql = props.into_query_as();
 
     let rsts: Vec<Restaurant> = sql
         .fetch_all(db_conn)
