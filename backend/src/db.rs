@@ -99,7 +99,7 @@ pub async fn add_dish(
     Ok(row.last_insert_rowid())
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, serde::Serialize)]
 pub struct Dish {
     pub id: i64,
     #[sqlx(rename = "restaurant")]
@@ -161,7 +161,7 @@ pub struct GetReviewProps {
     dish_id: Option<i64>,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, serde::Serialize)]
 pub struct Review {
     pub reviewer: i64,
     pub score: u8,
@@ -189,7 +189,7 @@ pub async fn get_review(db_conn: &SqlitePool, props: GetReviewProps) -> anyhow::
     Ok(row)
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, serde::Serialize)]
 pub struct Restaurant {
     pub name: String,
     pub id: i64,
