@@ -176,8 +176,11 @@ pub enum RestaurantSearchProps {
     All,
 }
 
-type SqliteQueryAs<'q> =
-    sqlx::query::QueryAs<'q, sqlx::Sqlite, Restaurant, sqlx::sqlite::SqliteArguments<'q>>;
+// for future migration, maybe someday I don't want sqlite
+type DB = sqlx::Sqlite;
+type DBArg<'q> = sqlx::sqlite::SqliteArguments<'q>;
+
+type SqliteQueryAs<'q, O> = sqlx::query::QueryAs<'q, DB, O, DBArg<'q>>;
 
 impl RestaurantSearchProps {
     pub fn gen_query<'q>(self) -> SqliteQueryAs<'q> {
