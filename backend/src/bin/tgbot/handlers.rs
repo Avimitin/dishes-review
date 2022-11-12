@@ -140,7 +140,7 @@ impl AddRestaurantAction {
 
                 bot.send_message(
                     msg.chat.id,
-                    format!("List of operation for: \n\n{}", rest.name),
+                    format!("List of operation for: \n\n{} {}", rest.name, rest.address),
                 )
                 .reply_markup(markup)
                 .await?;
