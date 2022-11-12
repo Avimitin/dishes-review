@@ -167,6 +167,7 @@ pub async fn get_review(db_conn: &SqlitePool, props: GetReviewProps) -> anyhow::
 pub struct Restaurant {
     pub name: String,
     pub id: i64,
+    pub address: String,
 }
 
 pub enum RestaurantSearchProps {
