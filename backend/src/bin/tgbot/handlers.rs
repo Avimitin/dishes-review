@@ -21,6 +21,8 @@ pub(super) enum ChatState {
     None,
     CreatingDishesStage1(i64),
     CreatingDisheFinal(i64, String),
+    CreatingReviewStage1(i64),
+    CreatingReviewStage2(i64, String),
     EditingRstName(i64),
     EditingRstAddr(i64),
 }
@@ -44,28 +46,24 @@ enum Commands {
 }
 
 pub(super) fn handler_schema() -> teloxide::dispatching::UpdateHandler<anyhow::Error> {
+    use dptree::case;
     let command_handler = teloxide::filter_command::<Commands, _>()
-        .branch(dptree::case![Commands::Rest].endpoint(restaurant_handler))
+        .branch(case![Commands::Rest].endpoint(restaurant_handler))
+        .branch(case![Commands::Review].endpoint(cmd_review_handler))
         .branch(
-            dptree::case![Commands::Help].endpoint(|msg: Message, bot: Bot| async move {
+            case![Commands::Help].endpoint(|msg: Message, bot: Bot| async move {
                 send!([bot, msg], Commands::descriptions().to_string());
                 Ok(())
             }),
         );
 
     let message_handler = Update::filter_message()
-        .branch(
-            dptree::case![ChatState::EditingRstName(_name)].endpoint(edit_restaurant_name_handler),
-        )
-        .branch(
-            dptree::case![ChatState::EditingRstAddr(_a)].endpoint(edit_restaurant_address_handler),
-        )
-        .branch(
-            dptree::case![ChatState::CreatingDishesStage1(_a)].endpoint(add_dish_stage1_handler),
-        )
-        .branch(
-            dptree::case![ChatState::CreatingDisheFinal(_a, _b)].endpoint(add_dish_final_handler),
-        )
+        .branch(case![ChatState::EditingRstName(_name)].endpoint(edit_restaurant_name_handler))
+        .branch(case![ChatState::EditingRstAddr(_a)].endpoint(edit_restaurant_address_handler))
+        .branch(case![ChatState::CreatingDishesStage1(_a)].endpoint(add_dish_stage1_handler))
+        .branch(case![ChatState::CreatingDisheFinal(_a, _b)].endpoint(add_dish_final_handler))
+        .branch(case![ChatState::CreatingReviewStage1(_a)].endpoint(review_stage1_handler))
+        .branch(case![ChatState::CreatingReviewStage2(_a, _b)].endpoint(review_stage2_handler))
         .branch(command_handler);
 
     let callback_handler = Update::filter_callback_query().endpoint(callback_dispatcher);
@@ -466,5 +464,88 @@ async fn add_dish_final_handler(
     dialogue.exit().await?;
 
     send!([bot, msg], "Dish added");
+    Ok(())
+}
+
+async fn cmd_review_handler(bot: Bot, msg: Message, dialogue: Dialogue) -> anyhow::Result<()> {
+    let Some(text) = msg.text() else {
+        return Ok(());
+    };
+
+    let args = text.split(' ').collect::<Vec<_>>();
+    if args.len() != 2 {
+        send!([bot, msg], "Usage: /review <Dish ID>");
+        return Ok(());
+    }
+    let Ok(dish_id) = args[1].parse::<i64>() else {
+        send!([bot, msg], format!("{} is not a valid number", args[1]));
+        return Ok(())
+    };
+
+    dialogue
+        .update(ChatState::CreatingReviewStage1(dish_id))
+        .await?;
+
+    send!([bot, msg], "Please send your review");
+
+    Ok(())
+}
+
+async fn review_stage1_handler(
+    bot: Bot,
+    msg: Message,
+    dialogue: Dialogue,
+    dish_id: i64,
+) -> anyhow::Result<()> {
+    let Some(text) = msg.text() else {
+        send!([bot, msg], "I need text message");
+        return Ok(())
+    };
+    send!([bot, msg], "Please send your rating for this dish, 0 - 5");
+    dialogue
+        .update(ChatState::CreatingReviewStage2(dish_id, text.to_string()))
+        .await?;
+    Ok(())
+}
+
+async fn review_stage2_handler(
+    bot: Bot,
+    msg: Message,
+    dialogue: Dialogue,
+    props: (i64, String),
+    pool: SqlitePool,
+) -> anyhow::Result<()> {
+    let Some(text) = msg.text() else {
+        send!([bot, msg], "I need number of the score, please retry");
+        return Ok(());
+    };
+
+    let score = text.parse::<u8>();
+    if score.is_err() {
+        send!([bot, msg], "Invalid number, please retry");
+        return Ok(());
+    }
+    let score = score.unwrap();
+    if !(0..=5).contains(&score) {
+        send!([bot, msg], "Invalid number, please send 0, 1, 2, 3, 4 or 5");
+        return Ok(());
+    }
+
+    let review = db::NewReviewPropsBuilder::default()
+        .dish(db::DishProp::Id(props.0))
+        .reviewer(db::ReviewerProp::Id(
+            // cast u64 to i64, this is probably safe to unwrap()
+            msg.from().unwrap().id.0.try_into().unwrap(),
+        ))
+        .score(score)
+        .details(props.1)
+        .build()
+        .unwrap();
+
+    db::add_new_review(&pool, review).await?;
+    dialogue.exit().await?;
+
+    send!([bot, msg], "New review added");
+
     Ok(())
 }
