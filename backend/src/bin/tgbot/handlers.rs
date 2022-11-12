@@ -1,7 +1,11 @@
+use anyhow::Context;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use meal_review::db;
 use sqlx::SqlitePool;
-use teloxide::{prelude::*, types::Message, Bot};
+use teloxide::{
+    dispatching::dialogue::InMemStorage, prelude::*, types::Message, utils::command::BotCommands,
+    Bot,
+};
 
 macro_rules! send {
     ([$bot:expr, $msg:expr], $text:expr) => {
@@ -37,6 +41,20 @@ enum AddRestaurantAction {
     Add(String, String),
     Search(String),
     Edit(i64),
+}
+
+struct BtnPrefix;
+impl BtnPrefix {
+    const RESTAURANT: &str = "RSTBTN";
+    const UPDATE_RESTAURANT: &str = "RSTUPDBTN";
+}
+
+struct RstBtnAction;
+impl RstBtnAction {
+    const UPDATE: &str = "update";
+    const ADD: &str = "new_dishes";
+    const LIST: &str = "list_dishes";
+    const DEL: &str = "delete";
 }
 
 impl AddRestaurantAction {
@@ -106,16 +124,16 @@ impl AddRestaurantAction {
                 }
                 let rest = &rest[0];
                 // build the callback data by "{category}-{id}-{action}"
-                let cbd = |action: &str| format!("RSTBTN-{}-{action}", rest.id);
+                let cbd = |action: &str| format!("{}-{}-{action}", BtnPrefix::RESTAURANT, rest.id);
                 let btn = teloxide::types::InlineKeyboardButton::callback;
                 let buttons = vec![
                     vec![
-                        btn("Update Restaurant", cbd("update")),
-                        btn("New Dish", cbd("new_dishes")),
+                        btn("Update Restaurant", cbd(RstBtnAction::UPDATE)),
+                        btn("New Dish", cbd(RstBtnAction::ADD)),
                     ],
                     vec![
-                        btn("List Dishes", cbd("list_dishes")),
-                        btn("Delete", cbd("delete")),
+                        btn("List Dishes", cbd(RstBtnAction::LIST)),
+                        btn("Delete", cbd(RstBtnAction::DEL)),
                     ],
                 ];
                 let markup = teloxide::types::InlineKeyboardMarkup::new(buttons);
