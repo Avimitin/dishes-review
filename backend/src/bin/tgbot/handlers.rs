@@ -57,9 +57,16 @@ pub(super) fn handler_schema() -> teloxide::dispatching::UpdateHandler<anyhow::E
             }),
         );
 
-    let message_handler = Update::filter_message().branch(command_handler);
+    let message_handler = Update::filter_message()
+        .branch(
+            dptree::case![ChatState::EditingRstName(_name)].endpoint(edit_restaurant_name_handler),
+        )
+        .branch(command_handler);
+
+    let callback_handler = Update::filter_callback_query().endpoint(callback_dispatcher);
 
     teloxide::dispatching::dialogue::enter::<Update, InMemStorage<ChatState>, ChatState, _>()
+        .branch(callback_handler)
         .branch(message_handler)
 }
 
@@ -206,10 +213,10 @@ async fn edit_restaurant_name_handler(
     bot: Bot,
     dialogue: Dialogue,
     rid: i64,
-    pool: &SqlitePool,
+    pool: SqlitePool,
 ) -> anyhow::Result<()> {
     let Some(text) = msg.text() else {
-        send!([bot, msg],  "Text name is required, please resend a valid restaurant name, or /cancel .");
+        send!([bot, msg],  "Text name is required, please resend a valid restaurant name, or /cancel.");
         return Ok(())
     };
 
@@ -220,13 +227,13 @@ async fn edit_restaurant_name_handler(
     }
 
     db::update_restaurant(
-        pool,
+        &pool,
         rid,
         db::UpdateRestaurantProps::UpdateName(text.to_string()),
     )
     .await?;
 
-    send!([bot, msg], "Restaurant name is changed to {text}");
+    send!([bot, msg], format!("Restaurant name is changed to {text}"));
     dialogue.exit().await?;
 
     Ok(())
@@ -315,11 +322,11 @@ async fn rstupd_cb_handler(
 ) -> anyhow::Result<()> {
     match field {
         RstBtnUpdActionBtn::NAME => {
-            send!([bot, msg], "Please send the new name");
+            send!([bot, msg], "Please send the new name, press /cancel to cancel");
             dialogue.update(ChatState::EditingRstName(rid)).await?;
         }
         RstBtnUpdActionBtn::ADDR => {
-            send!([bot, msg], "Please send the new address");
+            send!([bot, msg], "Please send the new address, press /cancel to cancel");
             dialogue.update(ChatState::EditingRstAddr(rid)).await?;
         }
         _ => (),
