@@ -173,3 +173,130 @@ async fn restaurant_handler(msg: Message, bot: Bot, pool: &SqlitePool) -> anyhow
 
     Ok(())
 }
+
+async fn edit_restaurant_name_handler(
+    msg: Message,
+    bot: Bot,
+    dialogue: Dialogue,
+    rid: i64,
+    pool: &SqlitePool,
+) -> anyhow::Result<()> {
+    let Some(text) = msg.text() else {
+        send!([bot, msg],  "Text name is required, please resend a valid restaurant name, or /cancel .");
+        return Ok(())
+    };
+
+    if text.contains("/cancel") {
+        send!([bot, msg], "Process cancelled");
+        dialogue.exit().await?;
+        return Ok(());
+    }
+
+    db::update_restaurant(
+        pool,
+        rid,
+        db::UpdateRestaurantProps::UpdateName(text.to_string()),
+    )
+    .await?;
+
+    send!([bot, msg], "Restaurant name is changed to {text}");
+    dialogue.exit().await?;
+
+    Ok(())
+}
+
+async fn callback_dispatcher(
+    bot: Bot,
+    query: CallbackQuery,
+    dialogue: Dialogue,
+) -> anyhow::Result<()> {
+    // just silently exit
+    let Some(data) = query.data else { return Ok(()) };
+    let callback_action = data.split('-').collect::<Vec<_>>();
+    if callback_action.is_empty() {
+        anyhow::bail!("Get callback action without data")
+    }
+    // we don't handle inline query, so there must be a message
+    let Some(message) = query.message else { return Ok(()) };
+    match callback_action[0] {
+        // This callback format is PREFIX-id-action
+        BtnPrefix::RESTAURANT => {
+            if callback_action.len() != 3 {
+                return Ok(());
+            }
+            let id: i64 = callback_action[1]
+                .parse()
+                .with_context(|| {
+                    format!("[RSTBTN dispatcher] original format: {callback_action:?}")
+                })
+                .expect("Met unexpected callback format, please check");
+
+            rst_cb_handler(bot, message, id, callback_action[2]).await?;
+        }
+        BtnPrefix::UPDATE_RESTAURANT => {
+            if callback_action.len() != 3 {
+                anyhow::bail!("invalid callback action data")
+            }
+            let id: i64 = callback_action[1]
+                .parse()
+                .with_context(|| {
+                    format!("[RSTBTN dispatcher] original format: {callback_action:?}")
+                })
+                .expect("Met unexpected callback format, please check");
+            rstupd_cb_handler(bot, message, id, callback_action[2], &dialogue).await?;
+        }
+        _ => (),
+    }
+
+    Ok(())
+}
+
+struct RstBtnUpdActionBtn;
+impl RstBtnUpdActionBtn {
+    const NAME: &str = "name";
+    const ADDR: &str = "address";
+    const CANCEL: &str = "cancel";
+}
+
+async fn rst_cb_handler(bot: Bot, msg: Message, rst_id: i64, action: &str) -> anyhow::Result<()> {
+    match action {
+        RstBtnAction::UPDATE => {
+            let new_text = "What you want to do with this restaurant";
+            let cbd = |field: &str| format!("{}-{rst_id}-{field}", BtnPrefix::UPDATE_RESTAURANT);
+            let btn = teloxide::types::InlineKeyboardButton::callback;
+            let buttons = vec![
+                btn("Update Name", cbd(RstBtnUpdActionBtn::NAME)),
+                btn("Update Address", cbd(RstBtnUpdActionBtn::ADDR)),
+                btn("Cancel", cbd(RstBtnUpdActionBtn::CANCEL)),
+            ];
+            let new_markup = teloxide::types::InlineKeyboardMarkup::default().append_row(buttons);
+            bot.edit_message_text(msg.chat.id, msg.id, new_text)
+                .reply_markup(new_markup)
+                .await?;
+        }
+        _ => panic!("Unexpected action {action} present, please check your code"),
+    }
+    Ok(())
+}
+
+async fn rstupd_cb_handler(
+    bot: Bot,
+    msg: Message,
+    rid: i64,
+    field: &str,
+    dialogue: &Dialogue,
+) -> anyhow::Result<()> {
+    match field {
+        RstBtnUpdActionBtn::NAME => {
+            send!([bot, msg], "Please send the new name");
+            dialogue.update(ChatState::EditingRstName(rid)).await?;
+        }
+        RstBtnUpdActionBtn::ADDR => {
+            send!([bot, msg], "Please send the new address");
+            dialogue.update(ChatState::EditingRstAddr(rid)).await?;
+        }
+        _ => (),
+    }
+
+    Ok(())
+}
