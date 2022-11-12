@@ -278,6 +278,7 @@ async fn callback_dispatcher(
     bot: Bot,
     query: CallbackQuery,
     dialogue: Dialogue,
+    pool: SqlitePool,
 ) -> anyhow::Result<()> {
     // just silently exit
     let Some(data) = query.data else { return Ok(()) };
@@ -300,7 +301,7 @@ async fn callback_dispatcher(
                 })
                 .expect("Met unexpected callback format, please check");
 
-            rst_cb_handler(bot, message, id, callback_action[2], &dialogue).await?;
+            rst_cb_handler(bot, message, id, callback_action[2], &dialogue, &pool).await?;
         }
         BtnPrefix::UPDATE_RESTAURANT => {
             if callback_action.len() != 3 {
@@ -332,6 +333,7 @@ async fn rst_cb_handler(
     rst_id: i64,
     action: &str,
     dialogue: &Dialogue,
+    pool: &SqlitePool,
 ) -> anyhow::Result<()> {
     match action {
         RstBtnAction::UPDATE => {
@@ -352,6 +354,17 @@ async fn rst_cb_handler(
             dialogue
                 .update(ChatState::CreatingDishesStage1(rst_id))
                 .await?;
+        }
+        RstBtnAction::LIST => {
+            let dishes = db::get_dish(pool, rst_id, None).await?;
+            let text = if dishes.is_empty() {
+                String::from("No dishes found")
+            } else {
+                dishes.iter().fold(String::new(), |sum, now| {
+                    format!("{sum}* {} {}\n", now.id, now.name)
+                })
+            };
+            send!([bot, msg], text);
         }
         _ => panic!("Unexpected action {action} present, please check your code"),
     }

@@ -99,6 +99,32 @@ pub async fn add_dish(
     Ok(row.last_insert_rowid())
 }
 
+#[derive(sqlx::FromRow)]
+pub struct Dish {
+    pub id: i64,
+    #[sqlx(rename = "restaurant")]
+    pub rid: i64,
+    pub name: String,
+    #[sqlx(default)]
+    pub image: Option<String>,
+}
+
+pub async fn get_dish(
+    db_conn: &SqlitePool,
+    restaurant: i64,
+    dish_id: Option<i64>,
+) -> anyhow::Result<Vec<Dish>> {
+    let query = if let Some(dish_id) = dish_id {
+        sqlx::query_as("SELECT * FROM dish WHERE id=?").bind(dish_id)
+    } else {
+        sqlx::query_as("SELECT * FROM dish WHERE restaurant=?").bind(restaurant)
+    };
+
+    let dishes = query.fetch_all(db_conn).await?;
+
+    Ok(dishes)
+}
+
 pub async fn add_new_review(db_conn: &SqlitePool, prop: NewReviewProps) -> anyhow::Result<()> {
     let NewReviewProps {
         reviewer,
@@ -137,9 +163,9 @@ pub struct GetReviewProps {
 
 #[derive(sqlx::FromRow)]
 pub struct Review {
-    reviewer: i64,
-    score: u8,
-    details: String,
+    pub reviewer: i64,
+    pub score: u8,
+    pub details: String,
 }
 
 pub async fn get_review(db_conn: &SqlitePool, props: GetReviewProps) -> anyhow::Result<Review> {
