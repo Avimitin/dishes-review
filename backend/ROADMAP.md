@@ -32,17 +32,17 @@
         * [new dishes]
         * [list dishes]
         * [delete]
-- [ ] Callback dispatcher
-- [ ] Setup dialogue
-- [ ] Update callback
-    - [ ] edit message
-    - [ ] update menu => `[update name | update address | cancel(Go back)]`
-- [ ] New dishes
-    - [ ] new dialogue
-    - [ ] receive name
-    - [ ] receive image (Optional)
-    - [ ] update database
-- [ ] List dishes: new message => query dishes for current restaurant
+- [x] Callback dispatcher
+- [x] Setup dialogue
+- [x] Update callback
+    - [x] edit message
+    - [x] update menu => `[update name | update address | cancel(Go back)]`
+- [x] New dishes
+    - [x] new dialogue
+    - [x] receive name
+    - [x] receive image (Optional)
+    - [x] update database
+- [x] List dishes: new message => query dishes for current restaurant
 - [ ] Delete: edit message => update menu => [Confirm | Cancel]
 
 ## Frontend
