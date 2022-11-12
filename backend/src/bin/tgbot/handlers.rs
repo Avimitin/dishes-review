@@ -151,19 +151,18 @@ impl AddRestaurantAction {
     }
 }
 
-async fn restaurant_handler(msg: Message, bot: Bot, pool: &SqlitePool) -> anyhow::Result<()> {
+async fn restaurant_handler(msg: Message, bot: Bot, pool: SqlitePool) -> anyhow::Result<()> {
     let Some(text) = msg.text() else { return Ok(()) };
 
     let arguments = text.split(' ').collect::<Vec<_>>();
-    let help = "Usage: /restaurant add <name>";
     let action = AddRestaurantAction::new(&arguments);
     if let Err(hint) = action {
-        send!([bot, msg], format!("{hint}\n\n{help}"));
+        send!([bot, msg], hint);
         return Ok(());
     }
 
     let action = action.unwrap();
-    if let Err(e) = action.run(&msg, &bot, pool).await {
+    if let Err(e) = action.run(&msg, &bot, &pool).await {
         send!(
             [bot, msg],
             format!("Fail to take action on restaurant: {e}")
