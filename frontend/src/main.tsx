@@ -4,6 +4,7 @@ import Root from "./routes/root";
 import "./index.css";
 import { createBrowserRouter, RouterProvider, Route } from "react-router-dom";
 import RestaurantDetail from "./routes/restaurants";
+import Review from "./routes/reviews";
 
 const router = createBrowserRouter([
   {
@@ -13,6 +14,10 @@ const router = createBrowserRouter([
   {
     path: "/restaurants/:id",
     element: <RestaurantDetail />,
+  },
+  {
+    path: "/reviews/:id",
+    element: <Review />
   },
 ]);
 

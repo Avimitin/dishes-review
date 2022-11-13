@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useBackend } from "../api";
 
 interface Dish {
@@ -52,7 +52,9 @@ function Dish({ dish }: { dish: Dish }) {
   return (
     <div>
       <li>
-        <h1>{dish.name}</h1>
+        <Link to={`/reviews/${dish.id}`}>
+          <h1>{dish.name}</h1>
+        </Link>
         {dish.image ? <img src={`${dish.image}`}></img> : <></>}
       </li>
     </div>
