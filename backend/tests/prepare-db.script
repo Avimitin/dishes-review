@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -e
+
+sqlx database setup
+
+querys=(
+    "INSERT INTO restaurant (name, address) VALUES ('KFC', 'WuHan');"
+    "INSERT INTO restaurant (name, address) VALUES ('麦当劳', 'Wuhan');"
+    "INSERT INTO restaurant (name, address) VALUES ('汉堡王', 'ShenZhen');"
+    "INSERT INTO dish (restaurant, name) VALUES (1, '吮指原味鸡');"
+    "INSERT INTO dish (restaurant, name) VALUES (2, '麦满分');"
+    "INSERT INTO reviewer (id, name) VALUES(1, 'Admin');"
+    "INSERT INTO review (reviewer, dish, details, score) VALUES(1, 1, '好恰', 4);"
+    "INSERT INTO review (reviewer, dish, details, score) VALUES(1, 2, '永远的神', 5);"
+)
+
+for str in "${querys[@]}"; do
+    sqlite3 review.db "$str"
+done
