@@ -1,4 +1,4 @@
-import { Restaurant, useRestaurants } from "../api";
+import { useBackend } from "../api";
 import { Link } from "react-router-dom";
 
 export default function Root() {
@@ -10,8 +10,14 @@ export default function Root() {
   );
 }
 
+interface Restaurant {
+  id: number;
+  name: string;
+  address: string;
+}
+
 function RestaurantsList() {
-  const resp = useRestaurants();
+  const resp = useBackend<Restaurant[]>("/api/v1/restaurants");
   if (resp.isLoading) {
     return (
       <div>
@@ -41,12 +47,10 @@ function RestaurantsList() {
 
 function RestaurantUnit({ rest }: { rest: Restaurant }) {
   return (
-    <div>
-      <li>
-        <Link to={`/restaurants/${rest.id}`}>
-          {`${rest.name} ${rest.address}`}
-        </Link>
-      </li>
-    </div>
+    <li>
+      <Link to={`/restaurants/${rest.id}`}>
+        {`${rest.name} ${rest.address}`}
+      </Link>
+    </li>
   );
 }
