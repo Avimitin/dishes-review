@@ -18,7 +18,6 @@ async fn main() -> anyhow::Result<()> {
         App::new()
             .wrap(
                 Cors::default()
-                    .allowed_origin("http://localhost:3000")
                     .allow_any_method()
                     .allow_any_origin(),
             )
