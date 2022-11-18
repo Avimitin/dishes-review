@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import Root from "./routes/root";
-import "./index.css";
+import "./index.scss";
 import { createBrowserRouter, RouterProvider, Route } from "react-router-dom";
 import RestaurantDetail from "./routes/restaurants";
 import Review from "./routes/reviews";
